@@ -1,0 +1,236 @@
+---
+title: "Populus Alba-Tremula expression analysis"
+author: "Ben Sivan"
+date: `j import Dates; Dates.Date(Dates.now())`
+output: pdf_document
+---
+
+```julia; echo = false
+using Dates
+```
+
+This is an analysis of RNA sequencing of various tissues from *Populus Alba-Tremula* (PopAT) in order to identify a novel transcription factor that is most representative of a tissue.
+
+The raw data of the tissues is available on NCBI's [SRA site.](https://www.ncbi.nlm.nih.gov/bioproject/?term=(Populus%20tremula%20x%20alba,%20clone%20717%20Transcriptome)%20AND%20bioproject_sra[filter]%20NOT%20bioproject_gap[filter]) 
+
+And the transcriptome assembly for reference from *Populus trichocarpa* (PopTri) available on NCBI's [Datasets site.] (https://www.ncbi.nlm.nih.gov/datasets/genomes/?txid=3689&term=Populus&utm_source=gquery&utm_medium=referral&utm_campaign=:assemb)
+
+Retrieving the data is done with the 'wget' bash command.
+
+```bash; eval = false
+wget -O filename url
+```
+
+Extract reads from SRR file using sratoolkit, the output of this command is two fastq files 1 and 2 which are fwd and rev reads respectively.
+
+```bash; eval = false
+fastq-dump --stdout SRR
+```
+
+Process the reads using fastp package (works only on linux).
+
+```bash; eval = false
+fastp --trim_poly_x --low_complexity_filter --complexity_threshold 50 --thread 16
+  -i input_reads1 -I input_reads2 -o output_reads1 -O output_reads1
+```
+
+Map reads to reference transcriptome.
+```bash; eval = false
+bwa mem --thread 20 reference.fa read1.fq read2.fq -o alignment.sam
+```
+
+Extract only accessions of the mapped reads and then count them.
+
+```julia; eval = false
+using XAM, BioAlignments
+
+reader = open(SAM.Reader, "data.sam")
+
+io = open("mapped_reads.txt", "w")
+for record in reader
+	if SAM.ismapped(record)
+		print(io, SAM.refname(record), "\n")
+	end
+end
+close(io)
+
+using FASTX, BioSequences, CSV, DataFrames
+
+Accessions = CSV.read("mapped_reads.txt", DataFrame, header = false)
+
+using Counters
+
+AC = counter(Accessions.Column1)
+
+Accessions_count = DataFrame(Accession = vcat(keys(AC)...), Count = vcat(values(AC)...))
+
+CSV.write("Accession_count.csv", Accessions_count)
+```
+
+Join all accessions count into one table.
+
+```julia; eval = false
+
+Tissues = ["ShootTip", "RootTip", "Bark", "Bud", "Xylem", "Callus", "Leaf"]
+
+AllTissues_dict = Dict()
+AllTissues_Accessions = DataFrame(Accession = [])
+for tissue in Tissues
+	push!(AllTissues_dict, "$tissue" => CSV.read(string(tissue,"_AccessionCount.csv"), DataFrame))
+	rename!(AllTissues_dict[tissue], ["Accession", tissue])
+	AllTissues_Accessions = outerjoin(AllTissues_Accessions, AllTissues_dict[tissue], on = :Accession)
+end
+
+for column in names(AllTissues_Accessions)[2:end]
+	replace!(AllTissues_Accessions[!,column], missing => 0);
+end
+
+
+# Add the gene description.
+
+description = DataFrame(Accession = [], Description = [])
+reader = open(FASTA.Reader, "PopTri_Transcript.fna")
+
+for record in reader
+	push!(description, (FASTA.identifier(record), FASTA.description(record)))
+end
+
+AllTissues_Accessions = inerjoin(AllTissues_Accessions, description, on = :Accession)
+
+select!(AllTissues_Accessions, :Accession, :Description, :ShootTip, :RootTip, :Callus, :Bud, :Xylem, :Leaf, :Bark)
+
+CSV.write("AllTissues_Accessions.csv",AllTissues_Accessions)
+
+```
+
+Normalize by read number per tissue and multiply by 10^8 to resume to convenient numbers.
+
+```julia; eval = false
+using FASTX
+
+Reads_num = Dict()
+for tissue in Tissues
+	cnt = 0
+	reader = open(FASTQ.Reader, "$tissue_processed1.fastq")
+	for record in reader
+		cnt += 1
+	end
+	
+	push!(Reads_num, tissue => cnt)
+end
+
+# Output:
+"""
+Dict{String,Int64} with 7 entries:
+  "Xylem"    => 33379668
+  "Bark"     => 45273452
+  "Callus"   => 44485862
+  "RootTip"  => 55579737
+  "ShootTip" => 58336874
+  "Bud"      => 58015650
+  "Leaf"     => 50610292
+"""
+
+for read_num in Reads_num
+	AllTissues_Accessions[read_num[1]] = (AllTissues_Accessions[read_num[1]]./read_num[2]).*1e8
+end
+	
+```
+
+Now is time for the real analysis.
+
+first we will check if the data is representitive as we expect by anelizing the known housekipping genes.
+
+Housekipping genes definition:
+Housekeeping genes are genes that are required for the maintenance of basal cellular functions that are essential for the existence of a cell, regardless of its specific role in the tissue or organism.
+
+In our context, the genes that their expression is the most consistent, no matter the tissue.
+
+The mathematical way to calculate it is by taking the ratio between standard deviation and the average of each gene per all tissues. Then the smallest number is representative of consistent expression.
+
+```julia;
+using CSV, DataFrames, DataFramesMeta, Statistics, Plots, StatsPlots
+
+AllTissues = CSV.read("AllTissues_Accessions.csv", DataFrame)
+
+select!(AllTissues, :Accession, :Description, :ShootTip, :RootTip, :Callus, :Bud, :Xylem, :Leaf, :Bark)
+
+AllTissues = @transform(AllTissues, Std = std.(eachrow(AllTissues[:,3:end])), Mean = mean.((eachrow(AllTissues[:,3:end]))))
+
+AllTissues = @transform(AllTissues, SM = :Std./:Mean)
+
+sort!(AllTissues, :SM)
+
+AllTissues[1:5,1:2]
+
+```
+
+Looks good, now we can plot the distribution of all genes from not tissue specific at all to most specific and we'll put the known housekeeping gene Actin-7 position for reference.
+
+```julia;
+
+function FindGene(name)
+	findings = []
+	for row in eachrow(AllTissues)
+		if occursin(name,row.Description)
+			push!(findings, row.Description)
+		end
+	end
+	return(findings)
+end
+
+
+HouseKipping = @df AllTissues plot(1:nrow(AllTissues),:SM, grid = false, label = "HouseKipping", xlabel = "Genes", ylabel = "HouseKipping frequency")
+
+Actin = findfirst(AllTissues.Description .== FindGene("actin-7")[1])
+
+plot!(fill(Actin,nrow(AllTissues)+1), [0:maximum(AllTissues.SM)/nrow(AllTissues):maximum(AllTissues.SM);], label = "Actin-7")
+
+```
+
+Now that we know the data can show as tissue specific and non tissue specific genes, we can try to identify genes that are representative of our tissue of interest.
+
+In this study, the tissue of interest is the Shoot apical meristem (SAM) and it is located in the shoot tip of the plant.
+
+There are several genes that were identified as SAM specific, such as WUSCHEL (WUS), and WUSCHEL related homeobox (WOX).
+
+In poplar, the gene WOX11 was identified by Bobin et al. as a master regulator for the maintenance of undeveloped cells, like in SAM among others.
+
+
+```julia;
+
+AllTissues = @transform(AllTissues, ShootOverAll = :ShootTip./(:RootTip.+:Bark.+:Leaf.+:Xylem.+:Callus.+:Bud.+1))
+
+sort!(AllTissues, :ShootOverAll, rev = true)
+
+ShootPlot = @df AllTissues plot(1:nrow(AllTissues),:ShootOverAll, grid = false, label = "ShootTip", xlabel = "Genes", ylabel = "ShootTip frequency Over All Tissue")
+
+WOX11 = findfirst(AllTissues.Description .== "PREDICTED: Populus trichocarpa WUSCHEL-related homeobox 11 (LOC7459190), mRNA")
+
+plot!(fill(WOX11,nrow(AllTissues)+1), [0:maximum(AllTissues.ShootOverAll)/nrow(AllTissues):maximum(AllTissues.ShootOverAll);], label = "WOX11")
+
+WUSCHEL = findfirst(AllTissues.Description .== "PREDICTED: Populus trichocarpa protein WUSCHEL (LOC7495542), mRNA")
+
+plot!(fill(WUSCHEL,nrow(AllTissues)+1), [0:maximum(AllTissues.ShootOverAll)/nrow(AllTissues):maximum(AllTissues.ShootOverAll);], label = "WUSCHEL")
+
+Actin = findfirst(AllTissues.Description .== "PREDICTED: Populus trichocarpa actin-7 (LOC7492024), mRNA")
+
+plot!(fill(Actin,nrow(AllTissues)+1), [0:maximum(AllTissues.ShootOverAll)/nrow(AllTissues):maximum(AllTissues.ShootOverAll);], label = "Actin-7")
+
+WOX1 = findfirst(AllTissues.Description .== "PREDICTED: Populus trichocarpa WUSCHEL-related homeobox 1 (LOC7493492), mRNA")
+
+plot!(fill(WOX1,nrow(AllTissues)+1), [0:maximum(AllTissues.ShootOverAll)/nrow(AllTissues):maximum(AllTissues.ShootOverAll);], label = "WOX1")
+
+```
+
+```julia;
+AllTissues[1:5,1:2]
+```
+
+In my analysis, WOX1 was found to be much more shoot-tip specific in comparison to WOX11.
+
+```julia;
+FindGene("WUSCHEL-related homeobox 1 ")
+```
+
+Found in positions `j findfirst(AllTissues.Description .==FindGene("WUSCHEL-related homeobox 1")[1])` and `j findfirst(AllTissues.Description .==FindGene("WUSCHEL-related homeobox 1")[2])` out of `j nrow(AllTissues)`.
