@@ -2,7 +2,9 @@
 title: "Populus Alba-Tremula expression analysis"
 author: "Ben Sivan"
 date: `j import Dates; Dates.Date(Dates.now())`
-output: pdf_document
+weave_options:
+  doctype: md2html
+  term: false
 ---
 
 ```julia; echo = false
@@ -169,9 +171,9 @@ Looks good, now we can plot the distribution of all genes from not tissue specif
 
 ```julia;
 
-function FindGene(name)
+function FindGene(df, name)
 	findings = []
-	for row in eachrow(AllTissues)
+	for row in eachrow(df)
 		if occursin(name,row.Description)
 			push!(findings, row.Description)
 		end
@@ -182,7 +184,7 @@ end
 
 HouseKipping = @df AllTissues plot(1:nrow(AllTissues),:SM, grid = false, label = "HouseKipping", xlabel = "Genes", ylabel = "HouseKipping frequency")
 
-Actin = findfirst(AllTissues.Description .== FindGene("actin-7")[1])
+Actin = findfirst(AllTissues.Description .== FindGene(AllTissues,"actin-7")[1])
 
 plot!(fill(Actin,nrow(AllTissues)+1), [0:maximum(AllTissues.SM)/nrow(AllTissues):maximum(AllTissues.SM);], label = "Actin-7")
 
@@ -199,38 +201,58 @@ In poplar, the gene WOX11 was identified by Bobin et al. as a master regulator f
 
 ```julia;
 
-AllTissues = @transform(AllTissues, ShootOverAll = :ShootTip./(:RootTip.+:Bark.+:Leaf.+:Xylem.+:Callus.+:Bud.+1))
+select!(AllTissues, :Accession, :Description, :ShootTip, :RootTip, :Callus, :Bud, :Xylem, :Leaf, :Bark)
 
-sort!(AllTissues, :ShootOverAll, rev = true)
+ShootSpecific = DataFrame(Accession = AllTissues.Accession, 
+						  Description = AllTissues.Description,
+						  RootTip = AllTissues.ShootTip./(AllTissues.RootTip.+1),
+						  Bud = AllTissues.ShootTip./(AllTissues.Bud.+1),
+						  Leaf = AllTissues.ShootTip./(AllTissues.Leaf.+1),
+						  Xylem = AllTissues.ShootTip./(AllTissues.Xylem.+1),
+						  Bark = AllTissues.ShootTip./(AllTissues.Bark.+1),
+						  Callus = AllTissues.ShootTip./(AllTissues.Callus.+1))
 
-ShootPlot = @df AllTissues plot(1:nrow(AllTissues),:ShootOverAll, grid = false, label = "ShootTip", xlabel = "Genes", ylabel = "ShootTip frequency Over All Tissue")
+ShootSpecific.Min = minimum.(eachrow(ShootSpecific[3:end]))
+sort!(ShootSpecific, :Min, rev = true)
 
-WOX11 = findfirst(AllTissues.Description .== "PREDICTED: Populus trichocarpa WUSCHEL-related homeobox 11 (LOC7459190), mRNA")
+ShootPlot = @df ShootSpecific plot(1:nrow(ShootSpecific),:Min, grid = false, label = "ShootTip", xlabel = "Genes", ylabel = "ShootTip frequency Over All Tissue", xscale = :log10)
 
-plot!(fill(WOX11,nrow(AllTissues)+1), [0:maximum(AllTissues.ShootOverAll)/nrow(AllTissues):maximum(AllTissues.ShootOverAll);], label = "WOX11")
+ShootSpecific_Over10 = @where(ShootSpecific, :Min .> 10)
 
-WUSCHEL = findfirst(AllTissues.Description .== "PREDICTED: Populus trichocarpa protein WUSCHEL (LOC7495542), mRNA")
+ShootSpecific_Over10.Sum = sum.(eachrow(ShootSpecific_Over10[3:end-1]))
+sort!(ShootSpecific_Over10, :Sum, rev = true)
 
-plot!(fill(WUSCHEL,nrow(AllTissues)+1), [0:maximum(AllTissues.ShootOverAll)/nrow(AllTissues):maximum(AllTissues.ShootOverAll);], label = "WUSCHEL")
+CSV.write("ShootSpecific_Over10.csv",ShootSpecific_Over10)
 
-Actin = findfirst(AllTissues.Description .== "PREDICTED: Populus trichocarpa actin-7 (LOC7492024), mRNA")
+sort!(ShootSpecific_Over10, :Sum, rev = true)
 
-plot!(fill(Actin,nrow(AllTissues)+1), [0:maximum(AllTissues.ShootOverAll)/nrow(AllTissues):maximum(AllTissues.ShootOverAll);], label = "Actin-7")
+FindGene(ShootSpecific_Over10, "WUSCHEL")
 
-WOX1 = findfirst(AllTissues.Description .== "PREDICTED: Populus trichocarpa WUSCHEL-related homeobox 1 (LOC7493492), mRNA")
+WOX1 = findfirst(ShootSpecific_Over10.Description .== FindGene(ShootSpecific_Over10,"WUSCHEL")[1])
 
-plot!(fill(WOX1,nrow(AllTissues)+1), [0:maximum(AllTissues.ShootOverAll)/nrow(AllTissues):maximum(AllTissues.ShootOverAll);], label = "WOX1")
+
+```
+
+
+```julia;
+
+#Shoot
+ShootPlot = @df ShootSpecific_Over10 plot(1:nrow(ShootSpecific_Over10),:Sum, grid = false, label = "ShootTip", xlabel = "Genes", ylabel = "ShootTip frequency Over All Tissue")
+
+WOX1 = findfirst(ShootSpecific_Over10.Description .== FindGene(ShootSpecific_Over10,"WUSCHEL-related homeobox 1 "))
+
+plot!(fill(WOX1,nrow(ShootSpecific_Over10)+1), [0:maximum(ShootSpecific_Over10.Sum)/nrow(ShootSpecific_Over10):maximum(ShootSpecific_Over10.Sum);], label = "WOX1")
 
 ```
 
 ```julia;
-AllTissues[1:5,1:2]
+ShootSpecific_Over10[1:10,1:2]
 ```
 
 In my analysis, WOX1 was found to be much more shoot-tip specific in comparison to WOX11.
 
 ```julia;
-FindGene("WUSCHEL-related homeobox 1 ")
+FindGene(ShootSpecific_Over10,"WUSCHEL-related homeobox 1 ")
 ```
 
-Found in positions `j findfirst(AllTissues.Description .==FindGene("WUSCHEL-related homeobox 1")[1])` and `j findfirst(AllTissues.Description .==FindGene("WUSCHEL-related homeobox 1")[2])` out of `j nrow(AllTissues)`.
+Found in positions `j findfirst(ShootSpecific_Over10.Description .==FindGene(ShootSpecific_Over10,"WUSCHEL-related homeobox 1")[1])` out of `j nrow(ShootSpecific_Over10)`.
