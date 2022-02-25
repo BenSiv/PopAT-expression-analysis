@@ -1,3 +1,8 @@
+cd("C:/Users/Ben_Sivan/Documents/GitHub/BenSiv/PopAT-expression-analysis/")
+
+using Pkg
+Pkg.activate(".")
+
 using CSV, DataFrames, DataFramesMeta, Statistics, Plots, StatsPlots
 
 AllTissues = CSV.read("AllTissues_Accessions.csv", DataFrame)
@@ -25,9 +30,20 @@ ShootSpecific = DataFrame(Accession = AllTissues.Accession,
 						  Bark = AllTissues.ShootTip./(AllTissues.Bark.+1),
 						  Callus = AllTissues.ShootTip./(AllTissues.Callus.+1))
 
-ShootSpecific.Sum = sum.(eachrow(ShootSpecific[:,3:end]))
-sort!(ShootSpecific, :Sum, rev = true)
-  
+
+
+ShootSpecific.Min = minimum.(eachrow(ShootSpecific[:,3:end]))
+sort!(ShootSpecific, :Min, rev = true)
+
+ShootSpecific_Over10 = @subset(ShootSpecific, :Min .> 10)
+
+ShootSpecific_Over10.Sum = sum.(eachrow(ShootSpecific_Over10[:,3:end-1]))
+sort!(ShootSpecific_Over10, :Sum, rev = true)
+
+CSV.write("ShootSpecific_Over10.csv", ShootSpecific_Over10)
+
+
+
 @df ShootSpecific plot(1:nrow(ShootSpecific),:Sum, grid = false, label = "ShootTip", xlabel = "Genes", ylabel = "ShootTip frequency Over All Tissue")
 
 Wuschels = FindGene(ShootSpecific, "WUSCHEL")
@@ -52,3 +68,24 @@ end
 
 sort!(Gene_lacations, :Location)
 CSV.write("Gene_lacations.csv", Gene_lacations)
+
+
+# ===================================================================================================
+
+
+
+HousKipping = @transform(AllTissues, :Std = std.(eachrow(AllTissues[:,3:end])), :Mean = mean.((eachrow(AllTissues[:,3:end]))))
+
+HousKipping = @transform(HousKipping, :CV = :Std./:Mean)
+
+sort!(HousKipping, :CV)
+
+HousKipping[1:5,:]
+
+CSV.write("HousKipping.csv",HousKipping)
+
+HousKipping_not_uncharacterized = HousKipping[BitVector(abs.(occursin.("uncharacterized",HousKipping.Description).-1)) ,:]
+
+CSV.write("HousKipping_not_uncharacterized.csv",HousKipping_not_uncharacterized)
+
+HousKipping_not_uncharacterized[1:5,1:2]

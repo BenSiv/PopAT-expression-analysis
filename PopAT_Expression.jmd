@@ -56,7 +56,8 @@ for record in reader
 end
 close(io)
 
-using FASTX, BioSequences, CSV, DataFrames
+using FASTX, BioSequences
+using CSV, DataFrames, DataFramesMeta
 
 Accessions = CSV.read("mapped_reads.txt", DataFrame, header = false)
 
@@ -67,6 +68,31 @@ AC = counter(Accessions.Column1)
 Accessions_count = DataFrame(Accession = vcat(keys(AC)...), Count = vcat(values(AC)...))
 
 CSV.write("Accession_count.csv", Accessions_count)
+```
+
+Long accessions would obviously get more mapped reads, than we need to normalize the count by the accession length (in base pairs).
+
+```julia; eval = false
+
+reader = open(FASTA.Reader, "reference_transcript.fna")
+gene_length = DataFrame(Accession = String[], Length = Int64[])
+for record in reader
+    push!(gene_length, [(FASTA.identifier(record)), length(FASTA.sequence(record))])
+end
+close(reader)
+
+using Plots, StatsPlots
+@df gene_length density(:Length)
+
+
+gene_length.Length = Float64.(gene_length.Length)
+
+using StatsBase
+gene_length.Length_norm = StatsBase.transform(StatsBase.fit(UnitRangeTransform, gene_length.Length), gene_length.Length)
+
+gene_length.Length = Int64.(gene_length.Length)
+
+CSV.write("gene_length.csv", gene_length)
 ```
 
 Join all accessions count into one table.
@@ -154,18 +180,32 @@ The mathematical way to calculate it is by taking the ratio between standard dev
 using CSV, DataFrames, DataFramesMeta, Statistics, Plots, StatsPlots
 
 AllTissues = CSV.read("AllTissues_Accessions.csv", DataFrame)
+gene_length = CSV.read("gene_length.csv", DataFrame)
 
 select!(AllTissues, :Accession, :Description, :ShootTip, :RootTip, :Callus, :Bud, :Xylem, :Leaf, :Bark)
 
-HousKipping = @transform(AllTissues, Std = std.(eachrow(AllTissues[:,3:end])), Mean = mean.((eachrow(AllTissues[:,3:end]))))
+AllTissues = @linq AllTissues |> innerjoin(gene_length, on = :Accession)
 
-HousKipping = @transform(HousKipping, CV = :Std./:Mean)
+AllTissues_normelized = DataFrame(Accession = AllTissues.Accession, 
+								  Description = AllTissues.Description,
+								  ShootTip = AllTissues.ShootTip./AllTissues.Length_norm,
+								  RootTip = AllTissues.RootTip./AllTissues.Length_norm,
+								  Bud = AllTissues.Bud./AllTissues.Length_norm,
+								  Leaf = AllTissues.Leaf./AllTissues.Length_norm,
+								  Xylem = AllTissues.Xylem./AllTissues.Length_norm,
+								  Bark = AllTissues.Bark./AllTissues.Length_norm,
+								  Callus = AllTissues.Callus./AllTissues.Length_norm)
+
+
+HousKipping = @transform(AllTissues_normelized, :Std = std.(eachrow(AllTissues_normelized[:,3:end])), :Mean = mean.((eachrow(AllTissues_normelized[:,3:end]))))
+
+HousKipping = @transform(HousKipping, :CV = :Std./:Mean)
 
 sort!(HousKipping, :CV)
 
 HousKipping[1:5,:]
 
-CSV.write("HousKipping.csv",HousKipping)
+CSV.write("HousKipping_normelized.csv",HousKipping)
 
 HousKipping_not_uncharacterized = HousKipping[BitVector(abs.(occursin.("uncharacterized",HousKipping.Description).-1)) ,:]
 
@@ -192,6 +232,8 @@ end
 
 @df HousKipping plot(1:nrow(HousKipping),:CV, grid = false, label = "HouseKipping", xlabel = "Genes", ylabel = "HouseKipping frequency")
 
+HousKipping = HousKipping[1:end-1,:]
+
 Actin = findfirst(HousKipping.Description .== FindGene(HousKipping,"actin-7")[1])
 
 plot!(fill(Actin,nrow(HousKipping)+1), [0:maximum(HousKipping.CV)/nrow(HousKipping):maximum(HousKipping.CV);], label = "Actin-7")
@@ -209,19 +251,18 @@ In poplar, the gene WOX11 was identified by Bobin et al. as a master regulator f
 
 ```julia;
 
-select!(AllTissues, :Accession, :Description, :ShootTip, :RootTip, :Callus, :Bud, :Xylem, :Leaf, :Bark)
-
-ShootSpecific = DataFrame(Accession = AllTissues.Accession, 
-						  Description = AllTissues.Description,
-						  RootTip = AllTissues.ShootTip./(AllTissues.RootTip.+1),
-						  Bud = AllTissues.ShootTip./(AllTissues.Bud.+1),
-						  Leaf = AllTissues.ShootTip./(AllTissues.Leaf.+1),
-						  Xylem = AllTissues.ShootTip./(AllTissues.Xylem.+1),
-						  Bark = AllTissues.ShootTip./(AllTissues.Bark.+1),
-						  Callus = AllTissues.ShootTip./(AllTissues.Callus.+1))
+ShootSpecific = DataFrame(Accession = AllTissues_normelized.Accession, 
+						  Description = AllTissues_normelized.Description,
+						  RootTip = AllTissues_normelized.ShootTip./(AllTissues_normelized.RootTip.+1),
+						  Bud = AllTissues_normelized.ShootTip./(AllTissues_normelized.Bud.+1),
+						  Leaf = AllTissues_normelized.ShootTip./(AllTissues_normelized.Leaf.+1),
+						  Xylem = AllTissues_normelized.ShootTip./(AllTissues_normelized.Xylem.+1),
+						  Bark = AllTissues_normelized.ShootTip./(AllTissues_normelized.Bark.+1),
+						  Callus = AllTissues_normelized.ShootTip./(AllTissues_normelized.Callus.+1))
 
 
-ShootSpecific.Min = minimum.(eachrow(ShootSpecific[3:end]))
+ShootSpecific.Min = minimum.(eachrow(ShootSpecific[:,3:end]))
+ShootSpecific = ShootSpecific[2:end,:]
 sort!(ShootSpecific, :Min, rev = true)
 
 ShootSpecific[1:5,1:2]
@@ -230,9 +271,9 @@ ShootSpecific[1:5,1:2]
 
 ```julia;
 
-ShootSpecific_Over10 = @where(ShootSpecific, :Min .> 10)
+ShootSpecific_Over10 = @subset(ShootSpecific, :Min .> 10)
 
-ShootSpecific_Over10.Sum = sum.(eachrow(ShootSpecific_Over10[3:end-1]))
+ShootSpecific_Over10.Sum = sum.(eachrow(ShootSpecific_Over10[:,3:end-1]))
 sort!(ShootSpecific_Over10, :Sum, rev = true)
 
 @df ShootSpecific_Over10 plot(1:nrow(ShootSpecific_Over10),:Sum, grid = false, label = "ShootTip", xlabel = "Genes", ylabel = "ShootTip frequency Over All Tissue")
