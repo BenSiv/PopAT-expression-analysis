@@ -70,7 +70,7 @@ Accessions_count = DataFrame(Accession = vcat(keys(AC)...), Count = vcat(values(
 CSV.write("Accession_count.csv", Accessions_count)
 ```
 
-Long accessions would obviously get more mapped reads, than we need to normalize the count by the accession length (in base pairs).
+Long accessions would obviously get more mapped reads. Hence, we need to normalize the count by the accession length (in base pairs).
 
 ```julia; eval = false
 
@@ -81,9 +81,6 @@ for record in reader
 end
 close(reader)
 
-using Plots, StatsPlots
-@df gene_length density(:Length)
-
 
 gene_length.Length = Float64.(gene_length.Length)
 
@@ -93,6 +90,16 @@ gene_length.Length_norm = StatsBase.transform(StatsBase.fit(UnitRangeTransform, 
 gene_length.Length = Int64.(gene_length.Length)
 
 CSV.write("gene_length.csv", gene_length)
+```
+```julia;
+
+using CSV, DataFrames
+
+gene_length = CSV.read("gene_length.csv", DataFrame)
+
+using Plots, StatsPlots
+@df gene_length density(:Length, grid = false, label = "gene length distribution")
+
 ```
 
 Join all accessions count into one table.
@@ -211,7 +218,7 @@ HousKipping_not_uncharacterized = HousKipping[BitVector(abs.(occursin.("uncharac
 
 CSV.write("HousKipping_not_uncharacterized.csv",HousKipping_not_uncharacterized)
 
-HousKipping_not_uncharacterized[1:5,1:2]
+HousKipping_not_uncharacterized[1:10,1:2]
 
 ```
 
@@ -265,7 +272,7 @@ ShootSpecific.Min = minimum.(eachrow(ShootSpecific[:,3:end]))
 ShootSpecific = ShootSpecific[2:end,:]
 sort!(ShootSpecific, :Min, rev = true)
 
-ShootSpecific[1:5,1:2]
+ShootSpecific[1:10,1:2]
 ```
 
 
@@ -276,6 +283,10 @@ ShootSpecific_Over10 = @subset(ShootSpecific, :Min .> 10)
 ShootSpecific_Over10.Sum = sum.(eachrow(ShootSpecific_Over10[:,3:end-1]))
 sort!(ShootSpecific_Over10, :Sum, rev = true)
 
+ShootSpecific_Over10 = ShootSpecific_Over10[BitVector(abs.(occursin.("uncharacterized",ShootSpecific_Over10.Description).-1)) ,:]
+
+CSV.write("ShootSpecific_Over10.csv", ShootSpecific_Over10)
+
 @df ShootSpecific_Over10 plot(1:nrow(ShootSpecific_Over10),:Sum, grid = false, label = "ShootTip", xlabel = "Genes", ylabel = "ShootTip frequency Over All Tissue")
 
 WOX1 = findfirst(ShootSpecific_Over10.Description .== FindGene(ShootSpecific_Over10,"WUSCHEL-related homeobox 1")[1])
@@ -285,10 +296,16 @@ plot!(fill(WOX1,nrow(ShootSpecific_Over10)+1), [0:maximum(ShootSpecific_Over10.S
 ```
 
 ```julia;
-ShootSpecific_Over10[1:5,1:2]
+ShootSpecific_Over10[1:10,1:2]
 ```
 
 In my analysis, WOX1 was found to be much more shoot-tip specific in comparison to WOX11.
+
+
+```julia;
+WOX1 = findfirst(AllTissues_normelized.Description .== FindGene(AllTissues_normelized,"WUSCHEL-related homeobox 1 ")[1])
+WOX1_df = AllTissues_normelized[WOX1,3:end]
+```
 
 ```julia;
 FindGene(ShootSpecific_Over10,"WUSCHEL-related homeobox 1 ")
