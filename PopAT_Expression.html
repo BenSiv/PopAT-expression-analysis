@@ -655,7 +655,7 @@ div.title {text-align: center;}
         <div class="title">
           <h1 class="title">Populus Alba-Tremula expression analysis</h1>
           <h5>Ben Sivan</h5>
-          <h5>2022-02-25</h5>
+          <h5>2022-07-13</h5>
         </div>
 
         
@@ -668,7 +668,7 @@ div.title {text-align: center;}
 <pre><code class="language-bash; eval &#61; false">fastq-dump --stdout SRR</code></pre>
 <p>Process the reads using fastp package &#40;works only on linux&#41;.</p>
 <pre><code class="language-bash; eval &#61; false">fastp --trim_poly_x --low_complexity_filter --complexity_threshold 50 --thread 16
-  -i input_reads1 -I input_reads2 -o output_reads1 -O output_reads1</code></pre>
+ -i input_reads1 -I input_reads2 -o output_reads1 -O output_reads1</code></pre>
 <p>Map reads to reference transcriptome.</p>
 <pre><code class="language-bash; eval &#61; false">bwa mem --thread 20 reference.fa read1.fq read2.fq -o alignment.sam</code></pre>
 <p>Extract only accessions of the mapped reads and then count them.</p>
@@ -794,13 +794,13 @@ div.title {text-align: center;}
 </span><span class='hljl-cs'># Output:</span><span class='hljl-t'>
 </span><span class='hljl-s'>&quot;&quot;&quot;
 Dict{String,Int64} with 7 entries:
-  &quot;Xylem&quot;    =&gt; 33379668
-  &quot;Bark&quot;     =&gt; 45273452
-  &quot;Callus&quot;   =&gt; 44485862
-  &quot;RootTip&quot;  =&gt; 55579737
-  &quot;ShootTip&quot; =&gt; 58336874
-  &quot;Bud&quot;      =&gt; 58015650
-  &quot;Leaf&quot;     =&gt; 50610292
+  &quot;Xylem&quot;    =&gt; 33379668
+  &quot;Bark&quot;     =&gt; 45273452
+  &quot;Callus&quot;   =&gt; 44485862
+  &quot;RootTip&quot;  =&gt; 55579737
+  &quot;ShootTip&quot; =&gt; 58336874
+  &quot;Bud&quot;      =&gt; 58015650
+  &quot;Leaf&quot;     =&gt; 50610292
 &quot;&quot;&quot;</span><span class='hljl-t'>
 
 </span><span class='hljl-k'>for</span><span class='hljl-t'> </span><span class='hljl-n'>read_num</span><span class='hljl-t'> </span><span class='hljl-kp'>in</span><span class='hljl-t'> </span><span class='hljl-n'>Reads_num</span><span class='hljl-t'>
@@ -947,13 +947,13 @@ Dict{String,Int64} with 7 entries:
 
 
 <pre class='hljl'>
-<span class='hljl-n'>WOX1</span><span class='hljl-t'> </span><span class='hljl-oB'>=</span><span class='hljl-t'> </span><span class='hljl-nf'>findfirst</span><span class='hljl-p'>(</span><span class='hljl-n'>AllTissues_normelized</span><span class='hljl-oB'>.</span><span class='hljl-n'>Description</span><span class='hljl-t'> </span><span class='hljl-oB'>.==</span><span class='hljl-t'> </span><span class='hljl-nf'>FindGene</span><span class='hljl-p'>(</span><span class='hljl-n'>AllTissues_normelized</span><span class='hljl-p'>,</span><span class='hljl-s'>&quot;WUSCHEL-related homeobox 1 &quot;</span><span class='hljl-p'>)[</span><span class='hljl-ni'>1</span><span class='hljl-p'>])</span><span class='hljl-t'>
-</span><span class='hljl-n'>WOX1_df</span><span class='hljl-t'> </span><span class='hljl-oB'>=</span><span class='hljl-t'> </span><span class='hljl-n'>AllTissues_normelized</span><span class='hljl-p'>[</span><span class='hljl-n'>WOX1</span><span class='hljl-p'>,</span><span class='hljl-ni'>3</span><span class='hljl-oB'>:</span><span class='hljl-k'>end</span><span class='hljl-p'>]</span>
+<span class='hljl-n'>WOX1</span><span class='hljl-t'> </span><span class='hljl-oB'>=</span><span class='hljl-t'> </span><span class='hljl-nf'>findfirst</span><span class='hljl-p'>(</span><span class='hljl-n'>ShootSpecific_Over10</span><span class='hljl-oB'>.</span><span class='hljl-n'>Description</span><span class='hljl-t'> </span><span class='hljl-oB'>.==</span><span class='hljl-t'> </span><span class='hljl-nf'>FindGene</span><span class='hljl-p'>(</span><span class='hljl-n'>ShootSpecific_Over10</span><span class='hljl-p'>,</span><span class='hljl-s'>&quot;WUSCHEL-related homeobox 1 &quot;</span><span class='hljl-p'>)[</span><span class='hljl-ni'>1</span><span class='hljl-p'>])</span><span class='hljl-t'>
+</span><span class='hljl-n'>WOX1_df</span><span class='hljl-t'> </span><span class='hljl-oB'>=</span><span class='hljl-t'> </span><span class='hljl-n'>ShootSpecific_Over10</span><span class='hljl-p'>[</span><span class='hljl-n'>WOX1</span><span class='hljl-p'>,</span><span class='hljl-ni'>3</span><span class='hljl-oB'>:</span><span class='hljl-k'>end</span><span class='hljl-p'>]</span>
 </pre>
 
 
 
-<p>DataFrameRow (7 columns)</p><div class="data-frame"><table class="data-frame"><thead><tr><th></th><th>ShootTip</th><th>RootTip</th><th>Bud</th><th>Leaf</th><th>Xylem</th><th>Bark</th><th>Callus</th></tr><tr><th></th><th title="Float64">Float64</th><th title="Float64">Float64</th><th title="Float64">Float64</th><th title="Float64">Float64</th><th title="Float64">Float64</th><th title="Float64">Float64</th><th title="Float64">Float64</th></tr></thead><tbody><tr><th>21942</th><td>6234.71</td><td>62.7392</td><td>596.023</td><td>0.0</td><td>0.0</td><td>15.6848</td><td>0.0</td></tr></tbody></table></div>
+<p>DataFrameRow (8 columns)</p><div class="data-frame"><table class="data-frame"><thead><tr><th></th><th>RootTip</th><th>Bud</th><th>Leaf</th><th>Xylem</th><th>Bark</th><th>Callus</th><th>Min</th><th>Sum</th></tr><tr><th></th><th title="Float64">Float64</th><th title="Float64">Float64</th><th title="Float64">Float64</th><th title="Float64">Float64</th><th title="Float64">Float64</th><th title="Float64">Float64</th><th title="Float64">Float64</th><th title="Float64">Float64</th></tr></thead><tbody><tr><th>7</th><td>97.8159</td><td>10.443</td><td>6234.71</td><td>6234.71</td><td>373.676</td><td>6234.71</td><td>10.443</td><td>19186.1</td></tr></tbody></table></div>
 
 
 <pre class='hljl'>
@@ -968,14 +968,14 @@ RNA&quot;
 </pre>
 
 
-<p>Found in positions 21942 out of 157.</p>
+<p>Found in positions 7 out of 157.</p>
 
 
         <HR/>
         <div class="footer">
           <p>
             Published from <a href="PopAT_Expression.jmd">PopAT_Expression.jmd</a>
-            using <a href="http://github.com/JunoLab/Weave.jl">Weave.jl</a> v0.10.10 on 2022-02-25.
+            using <a href="http://github.com/JunoLab/Weave.jl">Weave.jl</a> v0.10.10 on 2022-07-13.
           </p>
         </div>
       </div>

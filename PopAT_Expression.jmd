@@ -33,7 +33,7 @@ Process the reads using fastp package (works only on linux).
 
 ```bash; eval = false
 fastp --trim_poly_x --low_complexity_filter --complexity_threshold 50 --thread 16
-  -i input_reads1 -I input_reads2 -o output_reads1 -O output_reads1
+ -i input_reads1 -I input_reads2 -o output_reads1 -O output_reads1
 ```
 
 Map reads to reference transcriptome.
@@ -157,13 +157,13 @@ end
 # Output:
 """
 Dict{String,Int64} with 7 entries:
-  "Xylem"    => 33379668
-  "Bark"     => 45273452
-  "Callus"   => 44485862
-  "RootTip"  => 55579737
-  "ShootTip" => 58336874
-  "Bud"      => 58015650
-  "Leaf"     => 50610292
+  "Xylem"    => 33379668
+  "Bark"     => 45273452
+  "Callus"   => 44485862
+  "RootTip"  => 55579737
+  "ShootTip" => 58336874
+  "Bud"      => 58015650
+  "Leaf"     => 50610292
 """
 
 for read_num in Reads_num
@@ -303,8 +303,8 @@ In my analysis, WOX1 was found to be much more shoot-tip specific in comparison 
 
 
 ```julia;
-WOX1 = findfirst(AllTissues_normelized.Description .== FindGene(AllTissues_normelized,"WUSCHEL-related homeobox 1 ")[1])
-WOX1_df = AllTissues_normelized[WOX1,3:end]
+WOX1 = findfirst(ShootSpecific_Over10.Description .== FindGene(ShootSpecific_Over10,"WUSCHEL-related homeobox 1 ")[1])
+WOX1_df = ShootSpecific_Over10[WOX1,3:end]
 ```
 
 ```julia;
